@@ -60,7 +60,7 @@ void handleRoot() {
 
 void RegisterDevice() {
   HTTPClient http;
-  http.begin(String(configuration.apiAddress) + "/RegisterDevice");
+  http.begin(String(configuration.apiAddress) + "/api/Tc/RegisterDevice");
   http.addHeader("Content-Type", "application/x-www-form-urlencoded");
   String ChipId = String(ESP.getChipId());
   http.POST("chipID="+ChipId+"&to=sdfgsdfgs");
@@ -161,6 +161,8 @@ void setup() {
 //      WiFi.config(ipAdd, gateway, subnet);
 //      delay(500);
       WiFi.begin(configuration.ssid, configuration.pass);
+      delay(200);
+      RegisterDevice();
   }
 
   while (WiFi.status() != WL_CONNECTED) {
