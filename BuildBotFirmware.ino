@@ -30,6 +30,7 @@ struct config_t
     char rid[32];
     char ssid[32];
     char pass[64];
+    IPAddress ipAddress;
 } configuration;
 
 struct UpdateModel
@@ -85,7 +86,7 @@ void getId() {
 //  httpResponse(ESP.getChipId());
 }
 
-void writeToDisk(String rid, String wifiNet, String wifiPass, int mode) {
+void writeToDisk(String rid, String wifiNet, String wifiPass, int mode, IPAddress ip) {
 
   EEPROM.begin(512);
   delay(100);
@@ -93,6 +94,7 @@ void writeToDisk(String rid, String wifiNet, String wifiPass, int mode) {
   strncpy(configuration.rid, rid.c_str(), 32);
   strncpy(configuration.ssid, wifiNet.c_str(), 32);
   strncpy(configuration.pass, wifiPass.c_str(), 64);
+  configuration.ipAddress = ip;
   configuration.mode = mode;
 
   EEPROM_writeAnything(0, configuration);
@@ -101,6 +103,7 @@ void writeToDisk(String rid, String wifiNet, String wifiPass, int mode) {
   Serial.println(configuration.rid);
   Serial.println(configuration.ssid);
   Serial.println(configuration.pass);
+  Serial.println(configuration.ipAddress);
 
   EEPROM.end();
   httpResponse("ID written to Device");
@@ -120,6 +123,9 @@ void readFromDisk() {
 void HandleUpdate(UpdateModel updateModel) {
   if (strcmp (updateModel.EventName,"buildStarted") == 0) {
       Serial.println("Building Project");
+      digitalWrite(D6, HIGH);
+  } else {
+      digitalWrite(D6, LOW);
   }
   if (updateModel.EventName == "finished") {
       Serial.println("Idle");
@@ -134,34 +140,51 @@ void setup() {
   pinMode(D1, OUTPUT);
   pinMode(D2, OUTPUT);
   pinMode(D7, OUTPUT);
+  pinMode(D6, OUTPUT);
   pinMode(D3, INPUT);
-  
-	delay(1000);
+
 	Serial.begin(115200);
 
   EEPROM_readAnything(0, configuration);
+  delay(3000);
+
+  Serial.print("CONFIG MODE::::  ----->    ");
+  Serial.println(configuration.mode);
 
   if (configuration.mode == NULL) {
     configuration.mode = 0; // Setup Mode
   }
 
-  if (configuration.mode < 1) {
+  if (configuration.mode == 0) {
       Serial.println(configuration.ssid);
       Serial.print("Configuring access point...");
-      WiFi.softAP(ssid, password);     
-  } else {
+      WiFi.softAP(ssid, password);  
+      IPAddress myIP = WiFi.softAPIP();
+      Serial.print("AP IP address: ");
+      Serial.println(myIP);   
+  } 
+
+ if (configuration.mode == 1) {
       Serial.println("BuildBot Mode");
+
+      IPAddress ipAdd(192, 168, 0, 177);
+      IPAddress gateway = WiFi.gatewayIP();
+      IPAddress subnet = WiFi.subnetMask();
+      WiFi.config(ipAdd, gateway, subnet);
+      delay(500);
       WiFi.begin(configuration.ssid, configuration.pass);
   }
 
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
+//  while (WiFi.status() != WL_CONNECTED) {
+//    delay(500);
+//    Serial.print(".");
+//  }
 
-  IPAddress myIP = WiFi.softAPIP();
-  Serial.print("AP IP address: ");
-  Serial.println(myIP);
+//  Serial.print("WIFI IP: ");
+//  IPAddress ip = WiFi.localIP();
+//  Serial.println(ip);
+
+  
   server.on("/", handleRoot);
   server.on("/red", red);
   server.on("/yellow", yellow);
@@ -173,7 +196,7 @@ void setup() {
     String wifiNet = server.arg("wifi");
     String wifiPass = server.arg("wipass");
     String mode = server.arg("mode");
-    writeToDisk(rId, wifiNet, wifiPass, mode.toInt());
+    writeToDisk(rId, wifiNet, wifiPass, mode.toInt(), WiFi.localIP());
   });
 
   server.on("/Update", []() {
@@ -191,8 +214,6 @@ void setup() {
   });
   
   server.on("/readId", readFromDisk);
-    
-  
   server.begin();
   Serial.println("HTTP server started");
 }
