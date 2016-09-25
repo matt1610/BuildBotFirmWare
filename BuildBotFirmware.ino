@@ -30,7 +30,7 @@ struct config_t
     char rid[32];
     char ssid[32];
     char pass[64];
-    IPAddress ipAddress;
+    char apiAddress[32];
 } configuration;
 
 struct UpdateModel
@@ -58,35 +58,21 @@ void handleRoot() {
 	httpResponse("Buildbot is on");
 }
 
-void yellow() {
-  digitalWrite(D1, LOW);    
-  digitalWrite(D2, LOW);
-  digitalWrite(D7, HIGH);
-  httpResponse("yellow");
-  delay(1000);
-}
-
-void red() {
-  digitalWrite(D1, LOW);  
-  digitalWrite(D2, HIGH);
-  digitalWrite(D7, LOW);
-  httpResponse("red");
-  delay(1000);
-}
-
-void blue() {
-  digitalWrite(D1, HIGH);    
-  digitalWrite(D2, LOW);
-  digitalWrite(D7, LOW);
-  httpResponse("blue");
-  delay(1000);
+void RegisterDevice() {
+  HTTPClient http;
+  http.begin(String(configuration.apiAddress) + "/RegisterDevice");
+  http.addHeader("Content-Type", "application/x-www-form-urlencoded");
+  String ChipId = String(ESP.getChipId());
+  http.POST("chipID="+ChipId+"&to=sdfgsdfgs");
+  http.writeToStream(&Serial);
+  http.end();  
 }
 
 void getId() {
-//  httpResponse(ESP.getChipId());
+  httpResponse(ESP.getChipId());
 }
 
-void writeToDisk(String rid, String wifiNet, String wifiPass, int mode, IPAddress ip) {
+void writeToDisk(String rid, String wifiNet, String wifiPass, int mode, String apiAddress) {
 
   EEPROM.begin(512);
   delay(100);
@@ -94,7 +80,7 @@ void writeToDisk(String rid, String wifiNet, String wifiPass, int mode, IPAddres
   strncpy(configuration.rid, rid.c_str(), 32);
   strncpy(configuration.ssid, wifiNet.c_str(), 32);
   strncpy(configuration.pass, wifiPass.c_str(), 64);
-  configuration.ipAddress = ip;
+  strncpy(configuration.apiAddress, apiAddress.c_str(), 32);
   configuration.mode = mode;
 
   EEPROM_writeAnything(0, configuration);
@@ -103,7 +89,7 @@ void writeToDisk(String rid, String wifiNet, String wifiPass, int mode, IPAddres
   Serial.println(configuration.rid);
   Serial.println(configuration.ssid);
   Serial.println(configuration.pass);
-  Serial.println(configuration.ipAddress);
+  Serial.println(configuration.apiAddress);
 
   EEPROM.end();
   httpResponse("ID written to Device");
@@ -113,10 +99,8 @@ void writeToDisk(String rid, String wifiNet, String wifiPass, int mode, IPAddres
 void readFromDisk() {
   Serial.println("Reading");
   EEPROM_readAnything(0, configuration);
-
   Serial.print("Val: ");
   Serial.println(configuration.ssid);
-  
   httpResponse(configuration.ssid);
 }
 
@@ -151,6 +135,9 @@ void setup() {
   Serial.print("CONFIG MODE::::  ----->    ");
   Serial.println(configuration.mode);
 
+  Serial.print("CHIP ID::::      ----->    ");
+  Serial.println(ESP.getChipId());
+
   if (configuration.mode == NULL) {
     configuration.mode = 0; // Setup Mode
   }
@@ -166,29 +153,27 @@ void setup() {
 
  if (configuration.mode == 1) {
       Serial.println("BuildBot Mode");
+//      Serial.println(configuration.ipAddress);
 
-      IPAddress ipAdd(192, 168, 0, 177);
-      IPAddress gateway = WiFi.gatewayIP();
-      IPAddress subnet = WiFi.subnetMask();
-      WiFi.config(ipAdd, gateway, subnet);
-      delay(500);
+//      IPAddress ipAdd(192, 168, 0, 177);
+//      IPAddress gateway = WiFi.gatewayIP();
+//      IPAddress subnet = WiFi.subnetMask();
+//      WiFi.config(ipAdd, gateway, subnet);
+//      delay(500);
       WiFi.begin(configuration.ssid, configuration.pass);
   }
 
-//  while (WiFi.status() != WL_CONNECTED) {
-//    delay(500);
-//    Serial.print(".");
-//  }
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
 
-//  Serial.print("WIFI IP: ");
-//  IPAddress ip = WiFi.localIP();
-//  Serial.println(ip);
+  Serial.print("WIFI IP: ");
+  IPAddress ip = WiFi.localIP();
+  Serial.println(ip);
 
   
   server.on("/", handleRoot);
-  server.on("/red", red);
-  server.on("/yellow", yellow);
-  server.on("/blue", blue);
   server.on("/getId", getId);
   
   server.on("/writeConfig", []() {
@@ -196,7 +181,8 @@ void setup() {
     String wifiNet = server.arg("wifi");
     String wifiPass = server.arg("wipass");
     String mode = server.arg("mode");
-    writeToDisk(rId, wifiNet, wifiPass, mode.toInt(), WiFi.localIP());
+    String apiAddress = server.arg("apiAddress");
+    writeToDisk(rId, wifiNet, wifiPass, mode.toInt(), apiAddress);
   });
 
   server.on("/Update", []() {
