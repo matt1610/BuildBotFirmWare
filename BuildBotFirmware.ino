@@ -59,13 +59,14 @@ void handleRoot() {
 }
 
 void RegisterDevice() {
+ Serial.println(String(configuration.apiAddress));
   HTTPClient http;
-  http.begin(String(configuration.apiAddress) + "/api/Tc/RegisterDevice");
-  http.addHeader("Content-Type", "application/x-www-form-urlencoded");
-  String ChipId = String(ESP.getChipId());
-  http.POST("chipID="+ChipId+"&to=sdfgsdfgs");
+  http.begin(String(configuration.apiAddress) + ":7897/api/Tc/RegisterDevice");
+  http.addHeader("Content-Type", "application/json");
+  http.POST("{\"value\": 20 }");
   http.writeToStream(&Serial);
-  http.end();  
+  http.end();
+  Serial.println("Device register call made");  
 }
 
 void getId() {
